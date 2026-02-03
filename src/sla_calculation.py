@@ -1,115 +1,93 @@
-"""SLA calculation utilities (business days only, full-day hours).
+"""SLA calculation utilities.
 
-PT: Utilitários para cálculo de SLA considerando apenas dias úteis (24h por dia),
-    excluindo finais de semana e feriados nacionais.
-EN: SLA calculation utilities considering only business days (24h per day),
-    excluding weekends and national holidays.
+Calculates resolution time in business days (each business day = 24 hours),
+excluding weekends and national holidays.
 """
 
-# Importa pandas para manipulação de dados tabulares
-# Import pandas to handle tabular data
-import pandas as pd
+from __future__ import annotations
 
-# Importa numpy para cálculos numéricos eficientes
-# Import numpy for efficient numerical calculations
+# Bring in date/time helpers.
+from datetime import datetime, timedelta
+# Bring in typing helpers.
+from typing import Iterable, Set
+
+# Bring in numeric and table libraries.
 import numpy as np
-
-# Importa requests para consumir API de feriados
-# Import requests to consume holiday API
+import pandas as pd
+# Bring in requests to call the public holidays API.
 import requests
 
-# Importa datetime para manipulação de datas
-# Import datetime to handle dates
-from datetime import datetime
-
-# URL da API pública de feriados nacionais do Brasil
-# Public API URL for Brazilian national holidays
+# Public API URL for Brazilian national holidays (year will be formatted).
 HOLIDAYS_API = "https://brasilapi.com.br/api/feriados/v1/{year}"
 
 
-def get_holidays(years: list[int]) -> set:
-    """Fetch national holidays for given years.
-    PT: Busca feriados nacionais para os anos informados.
-    EN: Fetch national holidays for the given years.
-    """
-    holidays = set()  # Cria conjunto vazio para armazenar feriados / Create empty set to store holidays
-    for year in years:  # Itera sobre cada ano / Iterate over each year
-        response = requests.get(HOLIDAYS_API.format(year=year))  # Chama API / Call API
-        for h in response.json():  # Itera sobre resposta JSON / Iterate over JSON response
-            # Converte string de data para objeto date e adiciona ao conjunto
-            # Convert date string to date object and add to set
-            holidays.add(datetime.strptime(h["date"], "%Y-%m-%d").date())
-    return holidays  # Retorna conjunto de feriados / Return set of holidays
+# Fetch national holidays for the given years and return a set of date objects.
+def fetch_national_holidays(years: Iterable[int]) -> Set[datetime.date]:
+    holidays: Set[datetime.date] = set()
+    for year in sorted(set(years)):
+        try:
+            resp = requests.get(HOLIDAYS_API.format(year=year), timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            for item in data:
+                try:
+                    holidays.add(datetime.strptime(item["date"], "%Y-%m-%d").date())
+                except Exception:
+                    # Skip malformed entries.
+                    continue
+        except requests.RequestException:
+            # If the API fails for a year, skip holidays for that year (fail-safe).
+            continue
+    return holidays
 
 
+# Count business days between two timestamps (inclusive), excluding weekends and holidays.
+def _business_days_between(start: pd.Timestamp, end: pd.Timestamp, holidays: Set[datetime.date]) -> int:
+    if pd.isna(start) or pd.isna(end):
+        return 0
+    start_date = start.normalize().date()
+    end_date = end.normalize().date()
+    if start_date > end_date:
+        return 0
+    days = 0
+    current = start_date
+    while current <= end_date:
+        # Weekday < 5 means Monday-Friday.
+        if current.weekday() < 5 and current not in holidays:
+            days += 1
+        current += timedelta(days=1)
+    return days
+
+
+# Calculate resolution hours per row as business days * 24.
 def calculate_resolution_hours_business_days(df: pd.DataFrame) -> pd.Series:
-    """
-    Calculate resolution time in business hours (24h per business day),
-    excluding weekends and national holidays.
-    PT: Calcula tempo de resolução em horas úteis (24h por dia útil),
-        excluindo finais de semana e feriados nacionais.
-    """
+    # Parse created_at and resolved_at as timezone-aware UTC datetimes.
+    created = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
+    resolved = pd.to_datetime(df["resolved_at"], errors="coerce", utc=True)
 
-    # Converte colunas de datas para datetime em UTC
-    # Convert date columns to datetime in UTC
-    df["dt_created"] = pd.to_datetime(df["dt_created"], utc=True)
-    df["dt_resolved"] = pd.to_datetime(df["dt_resolved"], utc=True)
+    # Collect all years present in the dates to fetch holidays once per year.
+    years = set(created.dt.year.dropna().astype(int).tolist()) | set(resolved.dt.year.dropna().astype(int).tolist())
+    holidays = fetch_national_holidays(list(years))
 
-    # Coleta todos os anos presentes nas datas para buscar feriados
-    # Collect all years present in dates to fetch holidays
-    years = list(set(df["dt_created"].dt.year) | set(df["dt_resolved"].dt.year))
-    holidays = get_holidays(years)
-
-    # Cria intervalo de dias úteis entre menor data de criação e maior data de resolução
-    # Create business day range between min creation date and max resolution date
-    bdays = pd.bdate_range(df["dt_created"].min().normalize(),
-                           df["dt_resolved"].max().normalize(),
-                           freq="C", holidays=holidays)
-    bday_set = set(bdays.date)  # Conjunto de dias úteis válidos / Set of valid business days
-
-    def compute_hours(start, end):
-        # Se alguma data for nula, retorna NaN
-        # If any date is null, return NaN
-        if pd.isna(start) or pd.isna(end):
+    # Compute hours for a single row.
+    def compute_row_hours(s, e):
+        if pd.isna(s) or pd.isna(e):
             return np.nan
+        bdays = _business_days_between(s, e, holidays)
+        return float(bdays * 24)
 
-        # Lista de dias entre início e fim
-        # List of days between start and end
-        business_days = pd.date_range(start.normalize(), end.normalize(), freq="D")
-
-        # Filtra apenas dias úteis que não sejam feriados
-        # Filter only business days excluding holidays
-        valid_days = [d.date() for d in business_days if d.weekday() < 5 and d.date() not in holidays]
-
-        # Cada dia útil vale 24 horas
-        # Each business day counts as 24 hours
-        return len(valid_days) * 24
-
-    # Aplica função compute_hours linha a linha e retorna série com horas de resolução
-    # Apply compute_hours row by row and return series with resolution hours
-    return df.apply(lambda row: compute_hours(row["dt_created"], row["dt_resolved"]), axis=1)
+    # Apply the computation row by row and return a pandas Series.
+    return pd.Series([compute_row_hours(s, e) for s, e in zip(created, resolved)], index=df.index)
 
 
-def get_sla_expected(priority: str) -> int:
-    """Return SLA expected hours based on priority.
-    PT: Retorna SLA esperado em horas com base na prioridade.
-    EN: Return expected SLA hours based on priority.
-    """
-    # Mapeamento de prioridade para horas de SLA
-    # Mapping priority to SLA hours
-    mapping = {"High": 24, "Medium": 72, "Low": 120}
-    return mapping.get(str(priority).title(), np.nan)  # Retorna valor ou NaN / Return value or NaN
+# Map priority strings to expected SLA hours.
+def get_sla_expected(priority: str) -> float:
+    mapping = {"High": 24.0, "Medium": 72.0, "Low": 120.0}
+    return mapping.get(str(priority).title(), np.nan)
 
 
+# Return a boolean Series indicating whether SLA was met (True) or violated (False).
 def check_sla_compliance(df: pd.DataFrame) -> pd.Series:
-    """Check if SLA was met (returns 'Atendido' or 'Violado').
-    PT: Verifica se SLA foi atendido (retorna 'Atendido' ou 'Violado').
-    EN: Check if SLA was met (returns 'Atendido' or 'Violado').
-    """
-    # Compara horas de resolução com SLA esperado
-    # Compare resolution hours with expected SLA
-    return np.where(
-        df["resolution_hours"] <= df["sla_expected_hours"],  # Condição / Condition
-        "Atendido",  # SLA atendido / SLA met
-        "Violado"    # SLA violado / SLA violated
-    )
+    res = df["resolution_hours"]
+    expected = df["sla_expected_hours"]
+    return (res <= expected) & res.notna() & expected.notna()
