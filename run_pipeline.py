@@ -1,4 +1,8 @@
-# Indicate that future type annotations are enabled for compatibility.
+# Python Data Engineering Challenge – JIRA 
+
+#O objetivo deste desafio é avaliar a capacidade do participante em desenvolver um pipeline de Engenharia de Dados em Python, aplicando conceitos fundamentais como ingestão de dados, organização em camadas, transformações e aplicação de regras de negócio.
+#O foco principal da avaliação será a correta aplicação da Arquitetura Medallion, a clareza do código, segurança, qualidade dos dados e a implementação da lógica de cálculo de SLA.
+
 from __future__ import annotations
 
 # Import subprocess to run pip install commands.
@@ -38,59 +42,100 @@ LOG_FILE = LOG_DIR / "pipeline.log"
 
 # Read requirements.txt and return a list of package tokens.
 def parse_requirements(requirements_path: Path) -> List[str]:
-    # Initialize an empty list to collect package tokens.
+    """
+    Parse requirements.txt into a list of package tokens.
+    Normalizes common unicode hyphen characters to ASCII '-' to avoid pip token issues.
+    """
     pkgs: List[str] = []
-    # If the requirements file does not exist, return an empty list.
     if not requirements_path.exists():
         return pkgs
-    # Open the requirements file for reading using UTF-8 encoding.
+
+    # Unicode hyphen range to normalize: U+2010..U+2015 and U+2212 (common variants)
+    hyphen_normalizer = re.compile(r"[\u2010-\u2015\u2212]")
+
     with requirements_path.open("r", encoding="utf-8") as f:
-        # Iterate over each raw line in the file.
         for raw in f:
-            # Strip leading and trailing whitespace from the line.
             line = raw.strip()
-            # Skip empty lines and comment lines.
             if not line or line.startswith("#"):
                 continue
-            # Remove inline comments and semicolon parts, keep the first token.
             token = re.split(r"[;#]", line, maxsplit=1)[0].strip()
-            # Remove version specifiers like ==, >=, <=, ~=, >, <.
             token = re.split(r"==|>=|<=|~=|>|<", token, maxsplit=1)[0].strip()
-            # Remove extras like package[extra] and keep the base name.
             token = token.split("[", 1)[0].strip()
-            # If a valid token remains, append it to the list.
-            if token:
-                pkgs.append(token)
-    # Return the parsed package tokens.
+            if not token:
+                continue
+            # Normalize unicode hyphens to ASCII hyphen
+            token = hyphen_normalizer.sub("-", token)
+            pkgs.append(token)
     return pkgs
 
 
 # Convert a pip package token to a heuristic import name.
 def pkg_to_import_name(pkg_name: str) -> str:
-    # Replace hyphens with dots to map packages like azure-identity -> azure.identity.
-    return pkg_name.strip().replace("-", ".")
+    """
+    Heuristic mapping from pip token to importable module name.
+    Handles common special cases like python-dotenv -> dotenv and
+    converts hyphens to dots for names like azure-identity -> azure.identity.
+    """
+    name = pkg_name.strip()
+    lower = name.lower()
+
+    # Special-case known mappings
+    if lower in ("python-dotenv", "python_dotenv", "pythondotenv"):
+        return "dotenv"
+
+    # If package starts with 'python-' remove prefix (python-foo -> foo)
+    if lower.startswith("python-"):
+        return name[len("python-"):].replace("-", ".")
+
+    # Default heuristic: replace hyphens with dots (azure-identity -> azure.identity)
+    return name.replace("-", ".")
 
 
 # Determine which modules from requirements cannot be imported.
 def modules_missing_from_requirements(requirements_path: Path) -> List[str]:
-    # Initialize an empty list for missing import names.
+    """
+    For each package token in requirements, attempt several import name candidates.
+    Returns a list of canonical import names that appear missing.
+    """
     missing: List[str] = []
-    # Parse package tokens from the requirements file.
     pkgs = parse_requirements(requirements_path)
-    # If no packages were found, return an empty list.
     if not pkgs:
         return missing
-    # For each package token, attempt to import the heuristic module name.
+
     for pkg in pkgs:
-        # Convert the package token to an import name.
         import_name = pkg_to_import_name(pkg)
-        try:
-            # Try to import the module dynamically.
-            importlib.import_module(import_name)
-        except Exception:
-            # If import fails, record the import name as missing.
+        candidates: List[str] = []
+
+        # Primary candidate from heuristic
+        if import_name:
+            candidates.append(import_name)
+
+        # Try last segment of dotted name (e.g., azure.identity -> identity)
+        if "." in import_name:
+            candidates.append(import_name.split(".")[-1])
+
+        # Try common alternatives: underscore variant, raw package token, token without hyphens
+        candidates.append(pkg.replace("-", "_"))
+        candidates.append(pkg.replace("-", "."))
+        candidates.append(pkg.replace("-", ""))
+
+        # Deduplicate while preserving order
+        seen = set()
+        candidates = [c for c in candidates if c and not (c in seen or seen.add(c))]
+
+        success = False
+        for cand in candidates:
+            try:
+                importlib.import_module(cand)
+                success = True
+                break
+            except Exception:
+                continue
+
+        if not success:
+            # Report the canonical import_name (not the tried candidate list) for clarity
             missing.append(import_name)
-    # Return the list of missing import names.
+
     return missing
 
 
@@ -191,85 +236,115 @@ def main() -> None:
 
     # Open the system null device and redirect stdout/stderr to suppress details.
     devnull_path = os.devnull
-    with open(devnull_path, "w", encoding="utf-8") as devnull, redirect_stdout(devnull), redirect_stderr(devnull):
-        # Attempt to install requirements from requirements.txt.
-        try:
-            install_requirements(REQUIREMENTS_FILE)
-        except Exception as exc:
-            # Capture the last line of the traceback for the log description.
-            tb = traceback.format_exc()
-            duration = time.perf_counter() - start_time
-            description = (
-                f"Failed to install requirements: {exc} | "
-                f"{tb.splitlines()[-1] if tb else ''}"
-            )
-            append_log_line(timestamp_iso, duration, "ERROR", description)
-            # Attempt to remove the input JSON if it exists as cleanup.
+    try:
+        with open(devnull_path, "w", encoding="utf-8") as devnull, redirect_stdout(
+            devnull
+        ), redirect_stderr(devnull):
+            # Attempt to install requirements from requirements.txt.
             try:
-                if INPUT_PATH.exists():
-                    INPUT_PATH.unlink()
-            except Exception:
-                pass
-            # Mark as completed with error and exit the suppressed context.
-            completed = True
-            status = "ERROR"
-        # If installation succeeded, continue to imports and execution.
-        if not completed:
-            # Attempt to import pipeline layer functions after installation.
-            try:
-                from src.bronze.ingest_bronze import run_bronze  # noqa: E402
-                from src.silver.transform_silver import run_silver  # noqa: E402
-                from src.gold.build_gold import build_gold  # noqa: E402
+                install_requirements(REQUIREMENTS_FILE)
             except Exception as exc:
-                # Log import failure with a short description and cleanup.
+                # Capture the last line of the traceback for the log description.
                 tb = traceback.format_exc()
                 duration = time.perf_counter() - start_time
                 description = (
-                    f"Failed to import pipeline modules: {exc} | "
+                    f"Failed to install requirements: {exc} | "
                     f"{tb.splitlines()[-1] if tb else ''}"
                 )
                 append_log_line(timestamp_iso, duration, "ERROR", description)
+                # Attempt to remove the input JSON if it exists as cleanup.
                 try:
                     if INPUT_PATH.exists():
                         INPUT_PATH.unlink()
                 except Exception:
                     pass
+                # Mark as completed with error and exit the suppressed context.
                 completed = True
                 status = "ERROR"
-        # If imports succeeded, run the pipeline layers.
-        if not completed:
-            try:
-                # Run the Bronze ingestion layer.
-                bronze_path = run_bronze()
-                # Run the Silver transformation layer.
-                silver_path = run_silver()
-                # Run the Gold reporting layer.
-                outputs = build_gold()
 
-                # Summarize outputs for the concise log entry.
-                bronze_name = summarize_path(bronze_path)
-                silver_name = summarize_path(silver_path)
-                gold_summary = summarize_path(outputs)
-                # Mark the run as successful and prepare a short description.
-                status = "SUCCESS"
-                description = (
-                    f"Completed: Bronze={bronze_name}; Silver={silver_name}; "
-                    f"Gold={gold_summary}"
-                )
-                completed = True
-            except Exception as exc:
-                # On any exception, capture a short description including the last traceback line.
-                tb = traceback.format_exc()
-                description = f"{exc} | {tb.splitlines()[-1] if tb else ''}"
-                status = "ERROR"
-                completed = True
-            finally:
-                # Attempt to remove the input JSON file if it exists, ignoring errors.
+            # If installation succeeded, continue to imports and execution.
+            if not completed:
+                # Attempt to import pipeline layer functions after installation.
                 try:
-                    if INPUT_PATH.exists():
-                        INPUT_PATH.unlink()
-                except Exception:
-                    pass
+                    from src.bronze.ingest_bronze import run_bronze  # noqa: E402
+                    from src.silver.transform_silver import run_silver  # noqa: E402
+                    from src.gold.build_gold import build_gold  # noqa: E402
+                except Exception as exc:
+                    # Log import failure with a short description and cleanup.
+                    tb = traceback.format_exc()
+                    duration = time.perf_counter() - start_time
+                    description = (
+                        f"Failed to import pipeline modules: {exc} | "
+                        f"{tb.splitlines()[-1] if tb else ''}"
+                    )
+                    append_log_line(timestamp_iso, duration, "ERROR", description)
+                    try:
+                        if INPUT_PATH.exists():
+                            INPUT_PATH.unlink()
+                    except Exception:
+                        pass
+                    completed = True
+                    status = "ERROR"
+
+            # If imports succeeded, run the pipeline layers.
+            if not completed:
+                try:
+                    # Run the Bronze ingestion layer.
+                    bronze_path = run_bronze()
+                    # Run the Silver transformation layer.
+                    silver_path = run_silver()
+                    # Run the Gold reporting layer.
+                    outputs = build_gold()
+
+                    # Summarize outputs for the concise log entry.
+                    bronze_name = summarize_path(bronze_path)
+                    silver_name = summarize_path(silver_path)
+                    gold_summary = summarize_path(outputs)
+                    # Mark the run as successful and prepare a short description.
+                    status = "SUCCESS"
+                    description = (
+                        f"Completed: Bronze={bronze_name}; Silver={silver_name}; "
+                        f"Gold={gold_summary}"
+                    )
+                    completed = True
+                except SystemExit as se:
+                    # Convert SystemExit into a controlled error so final logging runs.
+                    code = se.code
+                    tb = traceback.format_exc()
+                    description = f"SystemExit called with code: {code}"
+                    if tb:
+                        # include last traceback line if available
+                        description = f"{description} | {tb.splitlines()[-1]}"
+                    status = "ERROR"
+                    completed = True
+                except Exception as exc:
+                    # On any exception, capture a short description including the last traceback line.
+                    tb = traceback.format_exc()
+                    description = f"{exc} | {tb.splitlines()[-1] if tb else ''}"
+                    status = "ERROR"
+                    completed = True
+                finally:
+                    # Attempt to remove the input JSON file if it exists, ignoring errors.
+                    try:
+                        if INPUT_PATH.exists():
+                            INPUT_PATH.unlink()
+                    except Exception:
+                        pass
+    except SystemExit as se_outer:
+        # Catch SystemExit that might occur outside the suppressed-with block.
+        code = se_outer.code
+        tb = traceback.format_exc()
+        description = f"SystemExit outside suppressed block with code: {code}"
+        if tb:
+            description = f"{description} | {tb.splitlines()[-1]}"
+        status = "ERROR"
+        completed = True
+    except Exception as outer_exc:
+        # Catch any unexpected exception that happens while opening devnull or redirecting.
+        tb = traceback.format_exc()
+        description = f"Unexpected orchestration error: {outer_exc} | {tb.splitlines()[-1] if tb else ''}"
+        status = "ERROR"
+        completed = True
 
     # After suppressed execution, compute total duration and append the log line.
     duration = time.perf_counter() - start_time

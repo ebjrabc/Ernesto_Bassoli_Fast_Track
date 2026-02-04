@@ -1,116 +1,287 @@
-# Indicate that future type annotations are enabled.
+"""Bronze layer.
+
+Reads raw Jira JSON from Azure Blob Storage (Service Principal) or local fallback,
+then writes a parquet file with selected fields. Includes robust logging,
+retries with exponential backoff, configurable timeouts, and a smoke test.
+"""
+
 from __future__ import annotations
 
-# Import json to parse the downloaded JSON file.
+# Bring in JSON reader to parse the input file.
 import json
-# Import os to access environment variables.
+# Bring in OS to read environment variables for credentials and flags.
 import os
-# Import re to parse .gitignore fallback lines.
-import re
-# Import sys to exit the process on fatal errors.
-import sys
-# Import time to implement retry backoff delays.
+# Bring in time for backoff sleep.
 import time
-# Import Path to build and manipulate filesystem paths.
+# Bring in logging to record events to console and file.
+import logging
+# Bring in sys for console handler stream selection.
+import sys
+# Bring in Path to build file paths safely.
 from pathlib import Path
-# Import typing helpers for annotations.
+# Bring in typing helpers for clarity.
 from typing import Any, Dict, List, Optional
 
-# Define the project root as the parent of the src folder.
+# Bring in pandas to build and save tables.
+import pandas as pd
+
+# Try to import Azure libraries; if missing, we will still allow local-only execution.
+try:
+    # Credential class for Service Principal authentication.
+    from azure.identity import ClientSecretCredential
+    # BlobClient to download a blob from Azure Storage.
+    from azure.storage.blob import BlobClient
+except Exception:
+    ClientSecretCredential = None  # type: ignore
+    BlobClient = None  # type: ignore
+
+# Try to load .env for local development, but do not fail if python-dotenv is not installed.
+try:
+    from dotenv import load_dotenv, find_dotenv  # type: ignore
+
+    dotenv_path = find_dotenv()
+    if dotenv_path:
+        load_dotenv(dotenv_path)
+except Exception:
+    # No-op: dotenv not installed or .env not found. Environment variables must be provided externally.
+    pass
+
+# -------------------------
+# Configuration and paths
+# -------------------------
+
+# Project root (three levels up from this file).
 PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
-# Define the path to .gitignore used as an optional insecure fallback.
-GITIGNORE_PATH = PROJECT_ROOT / ".gitignore"
-# Define the resources directory and ensure it exists.
+# Directory where input resources (including downloaded blob) will be stored.
 RESOURCES_DIR = PROJECT_ROOT / "resources"
+# Ensure resources directory exists.
 RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
-# Define the expected input JSON path inside resources.
+# Local path where the JSON will be saved or read from.
 INPUT_PATH = RESOURCES_DIR / "jira_issues_raw.json"
-# Define the bronze output directory and ensure it exists.
+# Bronze output folder and file path.
 BRONZE_DIR = PROJECT_ROOT / "data" / "bronze"
-BRONZE_DIR.mkdir(parents=True, exist_ok=True)
-# Define the bronze parquet output file path.
 OUTPUT_FILE = BRONZE_DIR / "bronze_issues.parquet"
+# Logs directory and file path.
+LOGS_DIR = PROJECT_ROOT / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOGS_DIR / "ingest.log"
 
-# Compile a regex pattern to parse KEY=VALUE lines from .gitignore fallback.
-# Use a raw single-quoted string so internal optional quotes do not break syntax.
-_GITIGNORE_KV_PATTERN = re.compile(r'^\s*([A-Z0-9_]+)\s*=\s*("?)(.+?)\2\s*$', re.IGNORECASE)
+# Read verbosity flag from environment (VERBOSE=1 for more logs).
+VERBOSE = os.getenv("VERBOSE", "0") in ("1", "true", "True")
 
+# -------------------------
+# Logging setup
+# -------------------------
 
-# Parse KEY=VALUE pairs from a .gitignore file as an insecure fallback.
-def parse_credentials_from_gitignore(path: Path) -> Dict[str, str]:
-    # Initialize an empty dictionary to hold parsed credentials.
-    creds: Dict[str, str] = {}
-    # If the .gitignore file does not exist, return an empty dict.
-    if not path.exists():
-        return creds
-    # Open the .gitignore file for reading.
-    with path.open("r", encoding="utf-8") as f:
-        # Iterate over each line in the file.
-        for line in f:
-            # Strip whitespace from the line.
-            line = line.strip()
-            # Skip empty lines, comments, and merge markers.
-            if (
-                not line
-                or line.startswith("#")
-                or line.startswith("<<<<<<<")
-                or line.startswith("=======")
-                or line.startswith(">>>>>>>")
-            ):
-                continue
-            # Attempt to match the KEY=VALUE pattern.
-            m = _GITIGNORE_KV_PATTERN.match(line)
-            if m:
-                # Store the parsed key (uppercased) and value in the dict.
-                creds[m.group(1).upper()] = m.group(3)
-    # Return the parsed credentials dictionary.
-    return creds
+# Create a logger for this module.
+logger = logging.getLogger("bronze_ingest")
+# Set level to DEBUG if verbose, else INFO.
+logger.setLevel(logging.DEBUG if VERBOSE else logging.INFO)
 
+# Create console handler to print to stdout.
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.DEBUG if VERBOSE else logging.INFO)
+# Create file handler to write logs to a file with timestamps.
+file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+file_handler.setLevel(logging.DEBUG)
 
-# Retrieve Azure credentials from environment variables or .gitignore fallback.
-def get_azure_credentials() -> Dict[str, Optional[str]]:
-    # Read expected environment variables into a dictionary.
-    creds = {
-        "ACCOUNT_URL": os.getenv("ACCOUNT_URL"),
-        "CONTAINER_NAME": os.getenv("CONTAINER_NAME"),
-        "BLOB_NAME": os.getenv("BLOB_NAME"),
-        "AZURE_TENANT_ID": os.getenv("AZURE_TENANT_ID"),
-        "AZURE_CLIENT_ID": os.getenv("AZURE_CLIENT_ID"),
-        "AZURE_CLIENT_SECRET": os.getenv("AZURE_CLIENT_SECRET"),
+# Simple log format with timestamp, level and message.
+formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s", "%Y-%m-%d %H:%M:%S")
+console_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+
+# Avoid adding multiple handlers if this module is reloaded.
+if not logger.handlers:
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
+# -------------------------
+# Azure environment reader
+# -------------------------
+
+# Read Azure-related environment variables.
+def _read_azure_env() -> Dict[str, Optional[str]]:
+    # Storage account URL (e.g., https://<account>.blob.core.windows.net).
+    account_url = os.getenv("ACCOUNT_URL")
+    # Container name where the blob is stored.
+    container_name = os.getenv("CONTAINER_NAME")
+    # Blob name (file name) inside the container.
+    blob_name = os.getenv("BLOB_NAME")
+    # Tenant id for the Service Principal.
+    tenant_id = os.getenv("AZURE_TENANT_ID")
+    # Client id for the Service Principal.
+    client_id = os.getenv("AZURE_CLIENT_ID")
+    # Client secret for the Service Principal.
+    client_secret = os.getenv("AZURE_CLIENT_SECRET")
+    return {
+        "account_url": account_url,
+        "container_name": container_name,
+        "blob_name": blob_name,
+        "tenant_id": tenant_id,
+        "client_id": client_id,
+        "client_secret": client_secret,
     }
-    # Identify which keys are missing or empty.
-    missing = [k for k, v in creds.items() if not v]
-    # If any keys are missing, attempt to fill them from .gitignore fallback.
-    if missing:
-        fallback = parse_credentials_from_gitignore(GITIGNORE_PATH)
-        for k in missing:
-            if fallback.get(k):
-                creds[k] = fallback[k]
-    # Return the credentials dictionary (may contain None values).
-    return creds
 
+# -------------------------
+# Azure download with retries
+# -------------------------
 
-# Build a bronze DataFrame from the raw JSON payload using pandas.
-def build_bronze_dataframe(payload: Dict[str, Any], pandas_module) -> "pandas.DataFrame":
-    # Extract the project object from the payload or use an empty dict.
-    project = payload.get("project", {}) or {}
-    # Extract the issues list from the payload or use an empty list.
-    issues: List[Dict[str, Any]] = payload.get("issues", []) or []
-    # Initialize a list to collect row dictionaries.
+# Download the JSON blob from Azure Blob Storage using Service Principal credentials.
+def fetch_blob_to_local_with_retries(
+    account_url: str,
+    container_name: str,
+    blob_name: str,
+    tenant_id: str,
+    client_id: str,
+    client_secret: str,
+    dest_path: Path,
+    timeout: int = 30,
+    max_retries: int = 3,
+    backoff_factor: float = 2.0,
+) -> None:
+    # If azure packages are not available, raise an informative error.
+    if ClientSecretCredential is None or BlobClient is None:
+        logger.error("Azure SDK packages not installed. Install 'azure-identity' and 'azure-storage-blob'.")
+        raise ImportError("Missing Azure SDK packages: azure-identity, azure-storage-blob")
+
+    # Create credential object using Service Principal.
+    credential = ClientSecretCredential(tenant_id=tenant_id, client_id=client_id, client_secret=client_secret)
+
+    # Create a BlobClient for the target blob.
+    blob_client = BlobClient(account_url=account_url, container_name=container_name, blob_name=blob_name, credential=credential)
+
+    attempt = 0
+    while attempt < max_retries:
+        attempt += 1
+        try:
+            logger.info("Attempt %d/%d: downloading blob '%s' from container '%s'.", attempt, max_retries, blob_name, container_name)
+            # CORREÇÃO: download_blob() retorna um downloader que não implementa context manager.
+            stream = blob_client.download_blob(timeout=timeout)
+            data = stream.readall()
+            dest_path.write_bytes(data)
+            logger.info("Blob successfully downloaded to %s", dest_path)
+            return
+        except Exception as exc:
+            # Log the exception with details and timestamp.
+            logger.warning("Download attempt %d failed (%s: %s)", attempt, type(exc).__name__, exc)
+            if attempt < max_retries:
+                wait = backoff_factor ** attempt
+                logger.info("Waiting %.1f seconds before next attempt...", wait)
+                time.sleep(wait)
+            else:
+                logger.error("All %d download attempts failed.", max_retries)
+                # Raise a ConnectionError to be handled by caller.
+                raise ConnectionError(f"Failed to download blob '{blob_name}' after {max_retries} attempts.") from exc
+
+# -------------------------
+# Read JSON (Azure or local fallback)
+# -------------------------
+
+# Read the JSON file and return a Python dictionary.
+def read_json_file(path: Path = INPUT_PATH, timeout: int = 30, max_retries: int = 3) -> Dict[str, Any]:
+    # Read Azure env vars.
+    env = _read_azure_env()
+    # Check if all Azure variables are present.
+    azure_ready = all(
+        [
+            env.get("account_url"),
+            env.get("container_name"),
+            env.get("blob_name"),
+            env.get("tenant_id"),
+            env.get("client_id"),
+            env.get("client_secret"),
+        ]
+    )
+
+    # If Azure env vars are present, attempt to download with retries.
+    if azure_ready:
+        logger.info("Azure credentials detected in environment. Attempting to download from Azure Blob Storage.")
+        try:
+            fetch_blob_to_local_with_retries(
+                account_url=env["account_url"],  # type: ignore[arg-type]
+                container_name=env["container_name"],  # type: ignore[arg-type]
+                blob_name=env["blob_name"],  # type: ignore[arg-type]
+                tenant_id=env["tenant_id"],  # type: ignore[arg-type]
+                client_id=env["client_id"],  # type: ignore[arg-type]
+                client_secret=env["client_secret"],  # type: ignore[arg-type]
+                dest_path=path,
+                timeout=timeout,
+                max_retries=max_retries,
+                backoff_factor=2.0,
+            )
+            logger.info("Using JSON downloaded from Azure Blob Storage.")
+        except Exception as exc:
+            # If download fails, log and try fallback to local file.
+            logger.warning("Azure download failed: %s", exc)
+            if path.exists():
+                logger.info("Local file found at %s. Using local file as fallback.", path)
+            else:
+                # No fallback available: log error and raise FileNotFoundError.
+                logger.error("Azure download failed and local file not found at %s.", path)
+                raise FileNotFoundError(f"Could not obtain input JSON from Azure and local file not found at {path}") from exc
+    else:
+        # Azure not configured: use local file if present.
+        missing_keys = [
+            k
+            for k, v in {
+                "ACCOUNT_URL": env.get("account_url"),
+                "CONTAINER_NAME": env.get("container_name"),
+                "BLOB_NAME": env.get("blob_name"),
+                "AZURE_TENANT_ID": env.get("tenant_id"),
+                "AZURE_CLIENT_ID": env.get("client_id"),
+                "AZURE_CLIENT_SECRET": env.get("client_secret"),
+            }.items()
+            if not v
+        ]
+        if missing_keys:
+            logger.warning(
+                "Azure credentials missing: %s. Set environment variables or provide them via .env for development.",
+                missing_keys,
+            )
+        logger.info("Azure credentials not provided or incomplete. Looking for local file at %s", path)
+        if not path.exists():
+            logger.error("Local input file not found at %s and Azure credentials not set.", path)
+            raise FileNotFoundError(f"Input JSON not found: {path}. Set Azure env vars or place the file at resources/")
+
+    # At this point the file exists locally (downloaded or pre-existing).
+    logger.info("Reading JSON file from %s", path)
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+# -------------------------
+# Build Bronze DataFrame
+# -------------------------
+
+# Build a pandas DataFrame with the selected fields in snake_case.
+def build_bronze_dataframe(payload: Dict[str, Any]) -> pd.DataFrame:
+    # Get top-level project info (may be empty).
+    project = payload.get("project", {})
+    # Get list of issues (each issue is a dict).
+    issues: List[Dict[str, Any]] = payload.get("issues", [])
+    # Prepare a list to collect rows.
     rows: List[Dict[str, Any]] = []
-    # Iterate over each issue in the issues list.
+
+    # Loop over each issue and extract the desired fields.
     for issue in issues:
-        # Extract timestamps which may be a list or a dict.
-        timestamps = issue.get("timestamps", {}) or {}
-        ts = timestamps[0] if isinstance(timestamps, list) and timestamps else (
-            timestamps if isinstance(timestamps, dict) else {}
-        )
-        # Extract assignee which may be a list or a dict.
-        assignee = issue.get("assignee", {}) or {}
-        assignee_info = assignee[0] if isinstance(assignee, list) and assignee else (
-            assignee if isinstance(assignee, dict) else {}
-        )
-        # Build a row dictionary with the desired fields in snake_case.
+        # Timestamps may be a list or dict; handle both cases.
+        timestamps = issue.get("timestamps", {})
+        if isinstance(timestamps, list) and timestamps:
+            ts = timestamps[0]
+        elif isinstance(timestamps, dict):
+            ts = timestamps
+        else:
+            ts = {}
+
+        # Assignee may be a list or dict; handle both cases.
+        assignee = issue.get("assignee", {})
+        if isinstance(assignee, list) and assignee:
+            assignee_info = assignee[0]
+        elif isinstance(assignee, dict):
+            assignee_info = assignee
+        else:
+            assignee_info = {}
+
+        # Build a single row with standardized column names.
         row = {
             "project_id": project.get("project_id"),
             "project_name": project.get("project_name"),
@@ -125,142 +296,93 @@ def build_bronze_dataframe(payload: Dict[str, Any], pandas_module) -> "pandas.Da
             "created_at": ts.get("created_at"),
             "resolved_at": ts.get("resolved_at"),
         }
-        # Append the row dictionary to the rows list.
+        # Add the row to the list.
         rows.append(row)
-    # Create a pandas DataFrame from the collected rows.
-    df = pandas_module.DataFrame(rows)
-    # Convert date-like columns to timezone-aware UTC datetimes when present.
+
+    # Convert the list of rows into a pandas DataFrame.
+    df = pd.DataFrame(rows)
+
+    # Convert date-like columns to timezone-aware UTC datetimes.
     for col in ["extracted_at", "created_at", "resolved_at"]:
         if col in df.columns:
-            df[col] = pandas_module.to_datetime(df[col], errors="coerce", utc=True)
-    # Return the constructed DataFrame.
+            df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
+
     return df
 
+# -------------------------
+# Smoke test / sanity check
+# -------------------------
 
-# Run the Bronze ingestion: download JSON from Azure and write a parquet file.
-def run_bronze(timeout: int = 30, max_retries: int = 3, backoff_factor: float = 2.0) -> Path:
-    # Attempt to import pandas and Azure SDK modules; assume entrypoint installed them.
+# Simple smoke test to validate expected columns exist and have reasonable types.
+def smoke_test(df: pd.DataFrame) -> bool:
+    # Required columns for Bronze output.
+    required = {"issue_id", "issue_type", "assignee_name", "priority", "created_at", "resolved_at"}
+    missing = required - set(df.columns)
+    if missing:
+        logger.error("Smoke test failed: missing required columns: %s", ", ".join(sorted(missing)))
+        return False
+
+    # Check that created_at is datetime-like.
+    if not pd.api.types.is_datetime64_any_dtype(df["created_at"]):
+        logger.warning("Smoke test: 'created_at' is not datetime dtype.")
+    # Check that issue_id has values.
+    if df["issue_id"].isna().all():
+        logger.warning("Smoke test: all issue_id values are null.")
+    logger.info("Smoke test passed (basic checks).")
+    return True
+
+# -------------------------
+# Run Bronze pipeline
+# -------------------------
+
+# Run the Bronze layer: read JSON, build DataFrame, save Parquet, return path.
+def run_bronze(timeout: int = 30, max_retries: int = 3) -> Path:
+    # Log start time and parameters.
+    logger.info("Starting Bronze ingestion. timeout=%s max_retries=%s", timeout, max_retries)
+
     try:
-        import pandas as pd  # type: ignore
-        from azure.identity import ClientSecretCredential  # type: ignore
-        from azure.storage.blob import BlobClient  # type: ignore
-    except Exception as exc:
-        # If imports fail, print an error and exit with code 1.
-        print(f"[ERROR] Required libraries not available in Bronze layer: {exc}")
-        sys.exit(1)
+        # Read payload from Azure or local file.
+        payload = read_json_file(path=INPUT_PATH, timeout=timeout, max_retries=max_retries)
+    except FileNotFoundError as exc:
+        # Fatal: no input available. Log and raise to allow orchestrator to handle and log traceback.
+        logger.error("Fatal error: %s", exc)
+        raise RuntimeError(f"Input JSON not available: {exc}") from exc
 
-    # Retrieve Azure credentials from environment or fallback.
-    creds = get_azure_credentials()
-    # Define the list of required credential keys.
-    required_keys = [
-        "ACCOUNT_URL",
-        "CONTAINER_NAME",
-        "BLOB_NAME",
-        "AZURE_TENANT_ID",
-        "AZURE_CLIENT_ID",
-        "AZURE_CLIENT_SECRET",
-    ]
-    # Identify any missing credential keys.
-    missing_keys = [k for k in required_keys if not creds.get(k)]
-    # If any required credentials are missing, print an error and exit.
-    if missing_keys:
-        print(
-            f"[ERROR] Azure credentials missing: {missing_keys}. "
-            "Set environment variables or provide them via .gitignore fallback."
-        )
-        sys.exit(1)
+    # Build the bronze DataFrame from the payload.
+    df = build_bronze_dataframe(payload)
 
-    # Internal helper to download a blob to a local path with retries and backoff.
-    def fetch_blob_to_local_with_retries(
-        account_url: str,
-        container_name: str,
-        blob_name: str,
-        tenant_id: str,
-        client_id: str,
-        client_secret: str,
-        dest_path: Path,
-        timeout: int = 30,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
-    ) -> None:
-        # Create a ClientSecretCredential for service principal authentication.
-        credential = ClientSecretCredential(
-            tenant_id=tenant_id, client_id=client_id, client_secret=client_secret
-        )
-        # Create a BlobClient for the specific blob to download.
-        blob_client = BlobClient(
-            account_url=account_url,
-            container_name=container_name,
-            blob_name=blob_name,
-            credential=credential,
-        )
-        # Initialize the attempt counter.
-        attempt = 0
-        # Loop until max_retries attempts are exhausted.
-        while attempt < max_retries:
-            attempt += 1
-            try:
-                # Download the blob; StorageStreamDownloader is not a context manager.
-                stream = blob_client.download_blob(timeout=timeout)
-                # Read all bytes from the stream.
-                data = stream.readall()
-                # Write the bytes to the destination path.
-                dest_path.write_bytes(data)
-                # Return on successful download.
-                return
-            except Exception as exc:
-                # If an attempt fails, and more attempts remain, wait with exponential backoff.
-                if attempt < max_retries:
-                    wait = backoff_factor ** attempt
-                    time.sleep(wait)
-                else:
-                    # If all attempts fail, raise a ConnectionError.
-                    raise ConnectionError(
-                        f"Failed to download blob '{blob_name}' after {max_retries} attempts."
-                    ) from exc
+    # Run smoke test and log result.
+    ok = smoke_test(df)
+    if not ok:
+        logger.warning("Smoke test reported issues. Check logs and input data for invalid records.")
 
-    # Attempt to download the JSON blob from Azure to the local resources path.
-    try:
-        fetch_blob_to_local_with_retries(
-            account_url=creds["ACCOUNT_URL"],
-            container_name=creds["CONTAINER_NAME"],
-            blob_name=creds["BLOB_NAME"],
-            tenant_id=creds["AZURE_TENANT_ID"],
-            client_id=creds["AZURE_CLIENT_ID"],
-            client_secret=creds["AZURE_CLIENT_SECRET"],
-            dest_path=INPUT_PATH,
-            timeout=timeout,
-            max_retries=max_retries,
-            backoff_factor=backoff_factor,
-        )
-    except Exception as exc:
-        # On download failure, print an error and exit.
-        print(f"[ERROR] Failed to download blob: {exc}")
-        sys.exit(1)
-
-    # Attempt to read the downloaded JSON file into a Python object.
-    try:
-        with INPUT_PATH.open("r", encoding="utf-8") as f:
-            payload = json.load(f)
-    except Exception as exc:
-        # If reading fails, print an error and exit.
-        print(f"[ERROR] Failed to read downloaded JSON: {exc}")
-        sys.exit(1)
-
-    # Build the bronze DataFrame from the raw JSON payload.
-    df = build_bronze_dataframe(payload, pd)
-    # Attempt to write the DataFrame to a parquet file using pyarrow engine.
-    try:
-        df.to_parquet(OUTPUT_FILE, index=False, engine="pyarrow")
-    except Exception as exc:
-        # If writing fails, print an error and exit.
-        print(f"[ERROR] Failed to write bronze parquet: {exc}")
-        sys.exit(1)
-
-    # Return the path to the written bronze parquet file.
+    # Ensure the bronze directory exists.
+    BRONZE_DIR.mkdir(parents=True, exist_ok=True)
+    # Save the DataFrame as Parquet (canonical Bronze format).
+    df.to_parquet(OUTPUT_FILE, index=False)
+    # Print confirmation and return the path.
+    logger.info("Bronze file generated at: %s", OUTPUT_FILE)
+    # Final summary: indicate whether Azure or local file was used.
+    env = _read_azure_env()
+    azure_used = all(
+        [env.get("account_url"), env.get("container_name"), env.get("blob_name"), env.get("tenant_id"), env.get("client_id"), env.get("client_secret")]
+    ) and INPUT_PATH.exists()
+    if azure_used:
+        logger.info("Ingestion completed using Azure Blob Storage as source.")
+    else:
+        logger.info("Ingestion completed using local file as source.")
     return OUTPUT_FILE
 
-
-# Allow running the Bronze ingestion directly for local testing.
+# Allow running this module directly for testing.
 if __name__ == "__main__":
-    run_bronze()
+    # Optional: read timeout and retries from environment for quick testing.
+    try:
+        t = int(os.getenv("INGEST_TIMEOUT", "30"))
+    except ValueError:
+        t = 30
+    try:
+        r = int(os.getenv("INGEST_RETRIES", "3"))
+    except ValueError:
+        r = 3
+    # When run directly, let exceptions propagate so the developer sees full trace.
+    run_bronze(timeout=t, max_retries=r)

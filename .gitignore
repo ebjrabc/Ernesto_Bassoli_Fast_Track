@@ -39,11 +39,5 @@ data/bronze/
 data/silver/
 data/gold/
 
-# Dados de acesso:
-ACCOUNT_URL = "https://stfasttracksdev.blob.core.windows.net"
-CONTAINER_NAME = "source-jira"
-BLOB_NAME = "jira_issues_raw.json"
-AZURE_TENANT_ID=3a9dcec2-1c28-49ec-8891-064f23836607
-AZURE_CLIENT_ID=e1985a41-68e9-4a12-8930-aca413148cf2
-AZURE_CLIENT_SECRET=czt8Q~J91ZYsLVH9JnLYwZbesJuEUrnsBsYZfcfq
+
 
