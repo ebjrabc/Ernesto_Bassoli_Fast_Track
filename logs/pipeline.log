@@ -1,0 +1,28 @@
+timestamp_iso | duration_s | status | description
+2026-02-03T15:44:05-0300 | 9.826s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(5 items)
+2026-02-03T15:45:38-0300 | 1.877s | ERROR | Failed to import pipeline modules: No module named 'src.bronze.ingest_bronze' | ModuleNotFoundError: No module named 'src.bronze.ingest_bronze'
+2026-02-03T15:45:38-0300 | 1.878s | ERROR | Failed to import pipeline modules: No module named 'src.bronze.ingest_bronze' | ModuleNotFoundError: No module named 'src.bronze.ingest_bronze'
+2026-02-03T15:45:52-0300 | 9.561s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(5 items)
+2026-02-04T13:18:37-0300 | 22.994s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(5 items)
+2026-02-04T13:26:59-0300 | 13.238s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(5 items)
+2026-02-09T16:23:24-0300 | 20.609s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(5 items)
+2026-02-09T16:25:57-0300 | 8.592s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(5 items)
+2026-02-09T16:29:26-0300 | 14.541s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(5 items)
+2026-02-09T16:31:24-0300 | 1.917s | ERROR | Failed to import pipeline modules: unindent does not match any outer indentation level (ingest_bronze.py, line 376) | IndentationError: unindent does not match any outer indentation level
+2026-02-09T16:31:24-0300 | 1.918s | ERROR | Failed to import pipeline modules: unindent does not match any outer indentation level (ingest_bronze.py, line 376) | IndentationError: unindent does not match any outer indentation level
+2026-02-09T16:38:26-0300 | 5.944s | ERROR | Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel. | ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
+2026-02-09T16:40:42-0300 | 5.816s | ERROR | Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel. | ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
+2026-02-09T16:42:05-0300 | 4.922s | ERROR | Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel. | ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
+2026-02-09T16:46:13-0300 | 5.152s | ERROR | Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel. | ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
+2026-02-09T16:48:13-0300 | 5.006s | ERROR | Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel. | ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
+2026-02-09T16:57:54-0300 | 5.148s | ERROR | Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel. | ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
+2026-02-09T16:58:51-0300 | 5.049s | ERROR | Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel. | ValueError: Excel does not support datetimes with timezones. Please ensure that datetimes are timezone unaware before writing to Excel.
+2026-02-09T16:59:30-0300 | 5.259s | ERROR | name 'OUTPUT_XLSX' is not defined | NameError: name 'OUTPUT_XLSX' is not defined. Did you mean: 'OUTPUT_FILE'?
+2026-02-09T17:01:23-0300 | 9.375s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(5 items)
+2026-02-09T18:00:45-0300 | 2.559s | ERROR | Failed to import pipeline modules: No module named 'holidays' | ModuleNotFoundError: No module named 'holidays'
+2026-02-09T18:00:45-0300 | 2.561s | ERROR | Failed to import pipeline modules: No module named 'holidays' | ModuleNotFoundError: No module named 'holidays'
+2026-02-09T18:02:24-0300 | 26.674s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(2 items)
+2026-02-09T18:16:46-0300 | 6.484s | ERROR | [Errno 13] Permission denied: 'C:\\Users\\EBJ\\Downloads\\Projeto Fast Track\\data\\gold\\gold_sla_issues.xlsx' | PermissionError: [Errno 13] Permission denied: 'C:\\Users\\EBJ\\Downloads\\Projeto Fast Track\\data\\gold\\gold_sla_issues.xlsx'
+2026-02-09T18:17:12-0300 | 7.525s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(4 items)
+2026-02-09T18:30:31-0300 | 6.470s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(4 items)
+2026-02-09T18:32:16-0300 | 6.958s | SUCCESS | Completed: Bronze=bronze_issues.parquet; Silver=silver_issues.parquet; Gold=dict(4 items)

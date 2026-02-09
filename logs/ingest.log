@@ -1,0 +1,173 @@
+2026-02-03 15:44:08 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-03 15:44:08 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-03 15:44:08 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-03 15:44:11 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-03 15:44:11 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-03 15:44:11 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-03 15:44:11 INFO Smoke test passed (basic checks).
+2026-02-03 15:44:11 INFO Bronze file generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet
+2026-02-03 15:44:11 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-03 15:45:54 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-03 15:45:54 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-03 15:45:54 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-03 15:45:58 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-03 15:45:58 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-03 15:45:58 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-03 15:45:58 INFO Smoke test passed (basic checks).
+2026-02-03 15:45:58 INFO Bronze file generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet
+2026-02-03 15:45:58 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-04 13:18:41 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-04 13:18:41 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-04 13:18:41 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-04 13:18:51 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-04 13:18:51 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-04 13:18:51 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-04 13:18:51 INFO Smoke test passed (basic checks).
+2026-02-04 13:18:51 INFO Bronze file generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet
+2026-02-04 13:18:51 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-04 13:27:03 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-04 13:27:03 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-04 13:27:03 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-04 13:27:08 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-04 13:27:08 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-04 13:27:08 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-04 13:27:08 INFO Smoke test passed (basic checks).
+2026-02-04 13:27:08 INFO Bronze file generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet
+2026-02-04 13:27:08 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-09 16:23:36 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:23:36 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:23:36 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:23:40 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:23:40 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:23:40 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:23:40 INFO Smoke test passed (basic checks).
+2026-02-09 16:23:40 INFO Bronze file generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet
+2026-02-09 16:23:40 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-09 16:26:00 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:26:00 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:26:00 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:26:03 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:26:03 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:26:03 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:26:03 INFO Smoke test passed (basic checks).
+2026-02-09 16:26:03 INFO Bronze file generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet
+2026-02-09 16:26:03 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-09 16:29:30 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:29:30 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:29:30 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:29:35 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:29:35 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:29:35 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:29:35 INFO Smoke test passed (basic checks).
+2026-02-09 16:29:35 INFO Bronze file generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet
+2026-02-09 16:29:35 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-09 16:38:29 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:38:29 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:38:29 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:38:32 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:38:32 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:38:32 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:38:32 INFO Smoke test passed (basic checks).
+2026-02-09 16:40:44 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:40:44 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:40:44 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:40:47 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:40:47 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:40:47 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:40:47 INFO Smoke test passed (basic checks).
+2026-02-09 16:42:07 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:42:07 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:42:07 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:42:10 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:42:10 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:42:10 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:42:10 INFO Smoke test passed (basic checks).
+2026-02-09 16:46:15 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:46:15 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:46:15 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:46:18 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:46:18 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:46:18 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:46:18 INFO Smoke test passed (basic checks).
+2026-02-09 16:48:15 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:48:15 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:48:15 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:48:18 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:48:18 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:48:18 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:48:18 INFO Smoke test passed (basic checks).
+2026-02-09 16:57:56 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:57:56 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:57:56 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:57:59 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:57:59 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:57:59 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:57:59 INFO Smoke test passed (basic checks).
+2026-02-09 16:58:53 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:58:53 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:58:53 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:58:56 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:58:56 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:58:56 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:58:56 INFO Smoke test passed (basic checks).
+2026-02-09 16:59:32 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 16:59:32 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 16:59:32 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 16:59:35 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:59:35 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 16:59:35 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 16:59:35 INFO Smoke test passed (basic checks).
+2026-02-09 17:01:25 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 17:01:25 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 17:01:25 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 17:01:28 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 17:01:28 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 17:01:28 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 17:01:28 INFO Smoke test passed (basic checks).
+2026-02-09 17:01:29 INFO Bronze files generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet and C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.xlsx
+2026-02-09 17:01:29 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-09 18:02:43 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 18:02:43 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 18:02:43 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 18:02:47 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 18:02:47 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 18:02:47 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 18:02:47 INFO Smoke test passed (basic checks).
+2026-02-09 18:02:48 INFO Bronze files generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet and C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.xlsx
+2026-02-09 18:02:48 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-09 18:16:48 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 18:16:48 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 18:16:48 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 18:16:52 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 18:16:52 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 18:16:52 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 18:16:52 INFO Smoke test passed (basic checks).
+2026-02-09 18:16:52 INFO Bronze files generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet and C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.xlsx
+2026-02-09 18:16:52 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-09 18:17:14 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 18:17:14 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 18:17:14 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 18:17:18 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 18:17:18 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 18:17:18 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 18:17:18 INFO Smoke test passed (basic checks).
+2026-02-09 18:17:18 INFO Bronze files generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet and C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.xlsx
+2026-02-09 18:17:18 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-09 18:30:33 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 18:30:33 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 18:30:33 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 18:30:36 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 18:30:36 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 18:30:36 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 18:30:37 INFO Smoke test passed (basic checks).
+2026-02-09 18:30:37 INFO Bronze files generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet and C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.xlsx
+2026-02-09 18:30:37 INFO Ingestion completed using Azure Blob Storage as source.
+2026-02-09 18:32:19 INFO Starting Bronze ingestion. timeout=30 max_retries=3
+2026-02-09 18:32:19 INFO Azure credentials detected in environment. Attempting to download from Azure Blob Storage.
+2026-02-09 18:32:19 INFO Attempt 1/3: downloading blob 'jira_issues_raw.json' from container 'source-jira'.
+2026-02-09 18:32:22 INFO Blob successfully downloaded to C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 18:32:22 INFO Using JSON downloaded from Azure Blob Storage.
+2026-02-09 18:32:22 INFO Reading JSON file from C:\Users\EBJ\Downloads\Projeto Fast Track\resources\jira_issues_raw.json
+2026-02-09 18:32:22 INFO Smoke test passed (basic checks).
+2026-02-09 18:32:22 INFO Bronze files generated at: C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.parquet and C:\Users\EBJ\Downloads\Projeto Fast Track\data\bronze\bronze_issues.xlsx
+2026-02-09 18:32:22 INFO Ingestion completed using Azure Blob Storage as source.
