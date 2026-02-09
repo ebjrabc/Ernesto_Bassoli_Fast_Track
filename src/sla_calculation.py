@@ -1,93 +1,154 @@
-"""SLA calculation utilities.
+# src/sla_calculation.py
+"""
+SLA calculation utilities.
 
-Calculates resolution time in business days (each business day = 24 hours),
-excluding weekends and national holidays.
+This module contains small, reusable functions that:
+- calculate resolution hours counting only business days,
+- map ticket priority to expected SLA hours,
+- check whether the SLA was met.
+
+All comments are written in plain English to help a non-technical reader.
 """
 
 from __future__ import annotations
-
-# Bring in date/time helpers.
-from datetime import datetime, timedelta
-# Bring in typing helpers.
-from typing import Iterable, Set
-
-# Bring in numeric and table libraries.
-import numpy as np
+# Import datetime helpers for working with dates and times.
+from datetime import datetime, timedelta, time
+# Import typing helpers to annotate optional values and sets.
+from typing import Optional, Set
+# pandas is used for parsing and validating timestamps.
 import pandas as pd
-# Bring in requests to call the public holidays API.
-import requests
-
-# Public API URL for Brazilian national holidays (year will be formatted).
-HOLIDAYS_API = "https://brasilapi.com.br/api/feriados/v1/{year}"
-
-
-# Fetch national holidays for the given years and return a set of date objects.
-def fetch_national_holidays(years: Iterable[int]) -> Set[datetime.date]:
-    holidays: Set[datetime.date] = set()
-    for year in sorted(set(years)):
-        try:
-            resp = requests.get(HOLIDAYS_API.format(year=year), timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-            for item in data:
-                try:
-                    holidays.add(datetime.strptime(item["date"], "%Y-%m-%d").date())
-                except Exception:
-                    # Skip malformed entries.
-                    continue
-        except requests.RequestException:
-            # If the API fails for a year, skip holidays for that year (fail-safe).
-            continue
-    return holidays
+# numpy is used for NaN values and numeric helpers.
+import numpy as np
+# holidays provides Brazilian national holiday dates.
+import holidays
 
 
-# Count business days between two timestamps (inclusive), excluding weekends and holidays.
-def _business_days_between(start: pd.Timestamp, end: pd.Timestamp, holidays: Set[datetime.date]) -> int:
+def calculate_resolution_hours_business_days(
+    created_at: pd.Timestamp,
+    resolved_at: pd.Timestamp,
+    br_holidays: Optional[Set[datetime.date]] = None,
+) -> float:
+    """
+    Calculate how many hours a ticket took to be resolved, counting only business days.
+
+    Business days are Monday through Friday, excluding Brazilian national holidays.
+    The function returns a floating point number representing hours.
+    If inputs are invalid or missing, the function returns numpy.nan.
+    """
+    # If either timestamp is missing, we cannot compute a meaningful SLA.
+    if pd.isna(created_at) or pd.isna(resolved_at):
+        return np.nan
+
+    # Convert inputs to pandas Timestamps in UTC to ensure consistent parsing.
+    start = pd.to_datetime(created_at, errors="coerce", utc=True)
+    end = pd.to_datetime(resolved_at, errors="coerce", utc=True)
+
+    # If parsing failed for either timestamp, return NaN.
     if pd.isna(start) or pd.isna(end):
-        return 0
-    start_date = start.normalize().date()
-    end_date = end.normalize().date()
-    if start_date > end_date:
-        return 0
-    days = 0
-    current = start_date
-    while current <= end_date:
-        # Weekday < 5 means Monday-Friday.
-        if current.weekday() < 5 and current not in holidays:
-            days += 1
-        current += timedelta(days=1)
-    return days
+        return np.nan
+
+    # If the resolved time is earlier than or equal to the created time,
+    # treat the duration as zero hours to avoid negative values.
+    if end <= start:
+        return 0.0
+
+    # Convert timezone-aware timestamps to naive UTC datetimes for simple arithmetic.
+    # This removes timezone objects but keeps the times in UTC.
+    start_naive = start.tz_convert("UTC").tz_localize(None)
+    end_naive = end.tz_convert("UTC").tz_localize(None)
+
+    # If the caller did not provide a set of holiday dates, build one for the years
+    # that appear between the start and end timestamps.
+    if br_holidays is None:
+        years = list(range(start_naive.year, end_naive.year + 1))
+        # holidays.Brazil returns a mapping of date -> holiday name; we take the keys.
+        br_holidays = set(holidays.Brazil(years=years).keys())
+
+    # Initialize a counter for total seconds that fall on business days.
+    total_seconds = 0.0
+
+    # current_day is the midnight of the start date; last_day is midnight of the end date.
+    current_day = start_naive.normalize()
+    last_day = end_naive.normalize()
+
+    # Iterate day by day from the start date to the end date (inclusive).
+    while current_day <= last_day:
+        # weekday() returns 0 for Monday through 6 for Sunday.
+        is_weekday = current_day.weekday() < 5
+        # Check if the current day is a Brazilian national holiday.
+        is_holiday = current_day.date() in br_holidays
+
+        # Only count time for days that are weekdays and not holidays.
+        if is_weekday and not is_holiday:
+            # Define the full span of the current day (00:00:00 to 23:59:59.999999).
+            day_start = datetime.combine(current_day.date(), time.min)
+            day_end = datetime.combine(current_day.date(), time.max)
+
+            # The actual interval we should count is the overlap between:
+            # - the ticket's [start_naive, end_naive] interval, and
+            # - the current day's [day_start, day_end] interval.
+            interval_start = max(start_naive.to_pydatetime(), day_start)
+            interval_end = min(end_naive.to_pydatetime(), day_end)
+
+            # If there is a positive overlap, add the overlapping seconds to the total.
+            if interval_end > interval_start:
+                total_seconds += (interval_end - interval_start).total_seconds()
+
+        # Move to the next calendar day.
+        current_day += timedelta(days=1)
+
+    # Convert total seconds to hours and return the result.
+    return total_seconds / 3600.0
 
 
-# Calculate resolution hours per row as business days * 24.
-def calculate_resolution_hours_business_days(df: pd.DataFrame) -> pd.Series:
-    # Parse created_at and resolved_at as timezone-aware UTC datetimes.
-    created = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
-    resolved = pd.to_datetime(df["resolved_at"], errors="coerce", utc=True)
+def get_sla_expected(priority: Optional[str]) -> Optional[float]:
+    """
+    Map ticket priority to expected SLA hours.
 
-    # Collect all years present in the dates to fetch holidays once per year.
-    years = set(created.dt.year.dropna().astype(int).tolist()) | set(resolved.dt.year.dropna().astype(int).tolist())
-    holidays = fetch_national_holidays(list(years))
+    Rules:
+    - 'High'   -> 24 hours
+    - 'Medium' -> 72 hours
+    - 'Low'    -> 120 hours
 
-    # Compute hours for a single row.
-    def compute_row_hours(s, e):
-        if pd.isna(s) or pd.isna(e):
-            return np.nan
-        bdays = _business_days_between(s, e, holidays)
-        return float(bdays * 24)
+    If priority is missing or not recognized, return None.
+    """
+    # If priority is missing, return None to indicate unknown expected SLA.
+    if priority is None:
+        return None
 
-    # Apply the computation row by row and return a pandas Series.
-    return pd.Series([compute_row_hours(s, e) for s, e in zip(created, resolved)], index=df.index)
+    # Normalize the priority string: convert to lowercase and strip whitespace.
+    priority_normalized = str(priority).strip().lower()
+
+    # Return the expected SLA hours according to the mapping rules.
+    if priority_normalized == "high":
+        return 24.0
+    if priority_normalized == "medium":
+        return 72.0
+    if priority_normalized == "low":
+        return 120.0
+
+    # If the priority value is not one of the expected labels, return None.
+    return None
 
 
-# Map priority strings to expected SLA hours.
-def get_sla_expected(priority: str) -> float:
-    mapping = {"High": 24.0, "Medium": 72.0, "Low": 120.0}
-    return mapping.get(str(priority).title(), np.nan)
+def check_sla_compliance(
+    resolution_hours: Optional[float], sla_expected_hours: Optional[float]
+) -> Optional[bool]:
+    """
+    Determine whether the SLA was met.
 
+    Returns:
+    - True if resolution_hours <= sla_expected_hours
+    - False if resolution_hours > sla_expected_hours
+    - None if either value is missing (unknown)
+    """
+    # If resolution_hours is missing or NaN, we cannot decide.
+    if resolution_hours is None or pd.isna(resolution_hours):
+        return None
 
-# Return a boolean Series indicating whether SLA was met (True) or violated (False).
-def check_sla_compliance(df: pd.DataFrame) -> pd.Series:
-    res = df["resolution_hours"]
-    expected = df["sla_expected_hours"]
-    return (res <= expected) & res.notna() & expected.notna()
+    # If expected SLA is missing or NaN, we cannot decide.
+    if sla_expected_hours is None or pd.isna(sla_expected_hours):
+        return None
+
+    # Compare numeric values and return the boolean result.
+    return float(resolution_hours) <= float(sla_expected_hours)

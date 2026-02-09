@@ -61,6 +61,7 @@ INPUT_PATH = RESOURCES_DIR / "jira_issues_raw.json"
 # Bronze output folder and file path.
 BRONZE_DIR = PROJECT_ROOT / "data" / "bronze"
 OUTPUT_FILE = BRONZE_DIR / "bronze_issues.parquet"
+OUTPUT_XLSX = BRONZE_DIR / "bronze_issues.xlsx"
 # Logs directory and file path.
 LOGS_DIR = PROJECT_ROOT / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -337,41 +338,85 @@ def smoke_test(df: pd.DataFrame) -> bool:
 
 # Run the Bronze layer: read JSON, build DataFrame, save Parquet, return path.
 def run_bronze(timeout: int = 30, max_retries: int = 3) -> Path:
-    # Log start time and parameters.
     logger.info("Starting Bronze ingestion. timeout=%s max_retries=%s", timeout, max_retries)
 
     try:
-        # Read payload from Azure or local file.
         payload = read_json_file(path=INPUT_PATH, timeout=timeout, max_retries=max_retries)
     except FileNotFoundError as exc:
-        # Fatal: no input available. Log and raise to allow orchestrator to handle and log traceback.
         logger.error("Fatal error: %s", exc)
         raise RuntimeError(f"Input JSON not available: {exc}") from exc
 
-    # Build the bronze DataFrame from the payload.
     df = build_bronze_dataframe(payload)
 
-    # Run smoke test and log result.
     ok = smoke_test(df)
     if not ok:
         logger.warning("Smoke test reported issues. Check logs and input data for invalid records.")
 
-    # Ensure the bronze directory exists.
     BRONZE_DIR.mkdir(parents=True, exist_ok=True)
-    # Save the DataFrame as Parquet (canonical Bronze format).
+
+    # Salva em Parquet
     df.to_parquet(OUTPUT_FILE, index=False)
-    # Print confirmation and return the path.
-    logger.info("Bronze file generated at: %s", OUTPUT_FILE)
-    # Final summary: indicate whether Azure or local file was used.
+
+# Run the Bronze layer: read JSON, build DataFrame, save Parquet, return path.
+def run_bronze(timeout: int = 30, max_retries: int = 3) -> Path:
+    logger.info("Starting Bronze ingestion. timeout=%s max_retries=%s", timeout, max_retries)
+
+    try:
+        payload = read_json_file(path=INPUT_PATH, timeout=timeout, max_retries=max_retries)
+    except FileNotFoundError as exc:
+        logger.error("Fatal error: %s", exc)
+        raise RuntimeError(f"Input JSON not available: {exc}") from exc
+
+    df = build_bronze_dataframe(payload)
+
+    ok = smoke_test(df)
+    if not ok:
+        logger.warning("Smoke test reported issues. Check logs and input data for invalid records.")
+
+    BRONZE_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Salva em Parquet (mantém timezone-aware, que é suportado)
+    df.to_parquet(OUTPUT_FILE, index=False)
+
+    # Converter colunas datetime para timezone-unaware antes de salvar em Excel
+    for col in ["extracted_at", "created_at", "resolved_at"]:
+        if col in df.columns and pd.api.types.is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].dt.tz_localize(None)   # REMOVE timezone
+
+    # Salva também em Excel
+    df.to_excel(OUTPUT_XLSX, index=False, engine="openpyxl")
+
+    logger.info("Bronze files generated at: %s and %s", OUTPUT_FILE, OUTPUT_XLSX)
+
     env = _read_azure_env()
     azure_used = all(
-        [env.get("account_url"), env.get("container_name"), env.get("blob_name"), env.get("tenant_id"), env.get("client_id"), env.get("client_secret")]
+        [env.get("account_url"), env.get("container_name"), env.get("blob_name"),
+         env.get("tenant_id"), env.get("client_id"), env.get("client_secret")]
     ) and INPUT_PATH.exists()
     if azure_used:
         logger.info("Ingestion completed using Azure Blob Storage as source.")
     else:
         logger.info("Ingestion completed using local file as source.")
+
+    # Só retorna no final
     return OUTPUT_FILE
+
+    # Logs de confirmação
+    logger.info("Bronze files generated at: %s and %s", OUTPUT_FILE, excel_file)
+
+    env = _read_azure_env()
+    azure_used = all(
+        [env.get("account_url"), env.get("container_name"), env.get("blob_name"),
+         env.get("tenant_id"), env.get("client_id"), env.get("client_secret")]
+    ) and INPUT_PATH.exists()
+    if azure_used:
+        logger.info("Ingestion completed using Azure Blob Storage as source.")
+    else:
+        logger.info("Ingestion completed using local file as source.")
+
+    # Só retorna no final
+    return OUTPUT_FILE
+
 
 # Allow running this module directly for testing.
 if __name__ == "__main__":
